@@ -27,7 +27,7 @@ export class LLMService {
           stop: ['Пользователь:', 'User:'],
         },
         {
-          timeout: 30000, // 30 seconds
+          timeout: 120000, // 120 seconds
           headers: {
             'Content-Type': 'application/json',
           },

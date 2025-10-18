@@ -64,7 +64,10 @@ client.on(Events.MessageCreate, async (message: Message) => {
   // Ignore bot messages
   if (message.author.bot) return;
   
-  if (!message.mentions.has(client.user!) && message.channel.isDMBased()) return;
+  if (!message.mentions.has(client.user!) || message.channel.isDMBased()) return;
+
+  let ragTime = 0;
+  let llmTime = 0;
 
   const startTime = Date.now();
   metrics.totalQueries++;
@@ -118,10 +121,13 @@ client.on(Events.MessageCreate, async (message: Message) => {
       );
     }
 
-    // Retrieve relevant context from RAG
+    const ragStart = Date.now();
     const ragContext = await ragService.search(userQuery, language);
-    
-    if (ragContext.length > 0) {
+    ragTime = Date.now() - ragStart;
+    logger.info(`RAG search took ${ragTime}ms`);
+
+
+      if (ragContext.length > 0) {
       metrics.ragHits++;
     } else {
       metrics.ragMisses++;
@@ -135,11 +141,14 @@ client.on(Events.MessageCreate, async (message: Message) => {
     const prompt = buildPrompt(systemPrompt, ragContext, conversationHistory, userQuery);
 
     // Get response from LLM
+    const llmStart = Date.now();
     const response = await llmService.generate(prompt, {
-      temperature: 0.7,
-      maxTokens: 2048,
-      language,
+        temperature: 0.7,
+        maxTokens: 512,
+        language,
     });
+    llmTime = Date.now() - llmStart;
+    logger.info(`LLM generation took ${llmTime}ms`);
 
     // Save to conversation history
     conversationManager.addMessage(message.author.id, {
