@@ -3,7 +3,7 @@ from typing import Optional
 
 class Settings:
     # Model configuration
-    MODEL_NAME: str = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+    MODEL_NAME: str = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-3B-Instruct")
     MODEL_PATH: Optional[str] = os.getenv("MODEL_PATH", None)
     
     # vLLM configuration
