@@ -63,52 +63,52 @@ class ChatCompletionRequest(BaseModel):
 async def lifespan(app: FastAPI):
     """Initialize and cleanup the model"""
     global model, tokenizer
-
-    logger.info("Initializing Qwen2.5 7B model (CPU with 4-bit quantization)...")
-
+    
+    logger.info("Initializing Qwen2.5 3B model (CPU with 4-bit quantization)...")
+    
     try:
         logger.info("Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(
-            "Qwen/Qwen2.5-7B-Instruct",
+            "Qwen/Qwen2.5-3B-Instruct",
             trust_remote_code=True
         )
         logger.info("✅ Tokenizer loaded")
-
+        
         logger.info("Loading model with 4-bit quantization...")
-        logger.info("First run: downloading ~14GB model (5-10 minutes)")
-        logger.info("Subsequent runs: using cached model (2-3 minutes to load)")
-
+        logger.info("Model: Qwen2.5-3B-Instruct (~3GB)")
+        logger.info("First run: downloading model (3-5 minutes)")
+        
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4"
         )
-
+        
         model = AutoModelForCausalLM.from_pretrained(
-            "Qwen/Qwen2.5-7B-Instruct",
+            "Qwen/Qwen2.5-3B-Instruct",
             quantization_config=quantization_config,
             device_map="cpu",
             trust_remote_code=True,
             low_cpu_mem_usage=True,
         )
-
-        logger.info("✅ Model loaded successfully with 4-bit quantization")
-        logger.info(f"Model memory footprint: ~{model.get_memory_footprint() / 1024**3:.2f}GB")
-
+        
+        logger.info("✅ Model loaded successfully")
+        logger.info(f"Model memory: ~{model.get_memory_footprint() / 1024**3:.2f}GB")
+        
     except Exception as e:
         logger.error(f"❌ Failed to initialize model: {e}")
         raise
-
+    
     yield
-
+    
     logger.info("Shutting down model...")
     model = None
     tokenizer = None
 
 
 app = FastAPI(
-    title="Qwen2.5 7B Instruct LLM Service (CPU Optimized)",
+    title="Qwen2.5 3B Instruct LLM Service (CPU Optimized)",
     description="CPU-optimized LLM inference with 4-bit quantization",
     version="1.0.0",
     lifespan=lifespan
@@ -129,7 +129,7 @@ async def health_check():
         raise HTTPException(status_code=503, detail="Model not initialized")
     return {
         "status": "healthy",
-        "model": "Qwen2.5-7B-Instruct-4bit",
+        "model": "Qwen2.5-3B-Instruct-4bit",
         "backend": "transformers+bitsandbytes",
         "device": "cpu"
     }
@@ -140,7 +140,7 @@ async def list_models():
     return {
         "object": "list",
         "data": [{
-            "id": "Qwen2.5-7B-Instruct-4bit",
+            "id": "Qwen2.5-3B-Instruct-4bit",
             "object": "model",
             "created": 1677610602,
             "owned_by": "qwen",
@@ -150,8 +150,14 @@ async def list_models():
 
 def generate_text(prompt: str, temperature: float, top_p: float, top_k: int,
                   max_tokens: int, stop_sequences: List[str]) -> tuple:
+
+    logger.info(f"Generating text with max_tokens={max_tokens}")
+    start_time = time.time()
+
     inputs = tokenizer(prompt, return_tensors="pt")
     prompt_tokens = inputs.input_ids.shape[1]
+
+    logger.info(f"Input prompt tokens: {prompt_tokens}")
 
     with torch.no_grad():
         outputs = model.generate(
@@ -168,13 +174,15 @@ def generate_text(prompt: str, temperature: float, top_p: float, top_k: int,
     text = tokenizer.decode(generated_ids, skip_special_tokens=True)
     completion_tokens = len(generated_ids)
 
+    elapsed = time.time() - start_time
+    logger.info(f"Generation completed in {elapsed:.2f}s, tokens: {completion_tokens}")
+
+    # Apply stop sequences
     for stop_seq in stop_sequences:
         if stop_seq in text:
             text = text[:text.index(stop_seq)]
 
     return text, prompt_tokens, completion_tokens
-
-
 @app.post("/v1/completions", response_model=CompletionResponse)
 async def create_completion(request: CompletionRequest):
     if model is None:
@@ -201,7 +209,7 @@ async def create_completion(request: CompletionRequest):
         return CompletionResponse(
             id=request_id,
             created=created_time,
-            model="Qwen2.5-7B-Instruct-4bit",
+            model="Qwen2.5-3B-Instruct-4bit",
             choices=[{
                 "text": text,
                 "index": 0,
@@ -248,7 +256,7 @@ async def stream_completion(prompt: str, temperature: float, top_p: float,
                 "id": request_id,
                 "object": "text_completion.chunk",
                 "created": created_time,
-                "model": "Qwen2.5-7B-Instruct-4bit",
+                "model": "Qwen2.5-3B-Instruct-4bit",
                 "choices": [{"text": text, "index": 0, "finish_reason": None}],
             }
             yield f"data: {json.dumps(chunk)}\n\n"
