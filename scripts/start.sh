@@ -26,11 +26,11 @@ read -r choice
 case $choice in
     1)
         echo "Starting all services including Discord Bot..."
-        docker-compose -f docker-compose.yaml up
+        docker-compose -f docker-compose.yml up
         ;;
     2)
         echo "Starting only LLM and Embedding services..."
-        docker-compose -f docker-compose.services-only.yaml up
+        docker-compose -f docker-compose.services-only.yml up
         ;;
     *)
         echo "Invalid choice. Exiting."

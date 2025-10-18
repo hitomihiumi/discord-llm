@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
         start = time.time()
         model = Llama(
             model_path=model_path,
-            n_ctx=2048,           # Context window
+            n_ctx=4096,           # Context window
             n_threads=8,          # Use all CPU cores
             n_batch=512,          # Batch size
             n_gpu_layers=0,       # CPU only
@@ -235,7 +235,7 @@ async def create_chat_completion(request: dict):
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main_llamacpp:app",
+        "main:app",
         host="0.0.0.0",
         port=8000,
         log_level="info",
