@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 import uvicorn
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer, BitsAndBytesConfig
 from threading import Thread
 import torch
 
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
     """Initialize and cleanup the model"""
     global model, tokenizer
 
-    logger.info("Initializing Qwen2.5 7B model (CPU optimized)...")
+    logger.info("Initializing Qwen2.5 7B model (CPU with 4-bit quantization)...")
 
     try:
         logger.info("Loading tokenizer...")
@@ -72,67 +72,29 @@ async def lifespan(app: FastAPI):
             "Qwen/Qwen2.5-7B-Instruct",
             trust_remote_code=True
         )
+        logger.info("✅ Tokenizer loaded")
 
-        logger.info("Loading quantized model (Q3_K_M - ~3.6GB)...")
-        logger.info("This may take 1-2 minutes on first run...")
+        logger.info("Loading model with 4-bit quantization...")
+        logger.info("First run: downloading ~14GB model (5-10 minutes)")
+        logger.info("Subsequent runs: using cached model (2-3 minutes to load)")
 
-        # Use GGUF with llama.cpp backend for CPU efficiency
-        try:
-            from llama_cpp import Llama
-            import os
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4"
+        )
 
-            model_path = "/app/models/qwen2.5-7b-instruct-q3_k_m.gguf"
+        model = AutoModelForCausalLM.from_pretrained(
+            "Qwen/Qwen2.5-7B-Instruct",
+            quantization_config=quantization_config,
+            device_map="cpu",
+            trust_remote_code=True,
+            low_cpu_mem_usage=True,
+        )
 
-            # Check file exists and size
-            if not os.path.exists(model_path):
-                logger.error(f"Model file not found: {model_path}")
-                logger.info(f"Files in /app/models/: {os.listdir('/app/models/')}")
-                raise FileNotFoundError(f"Model not found: {model_path}")
-
-            file_size = os.path.getsize(model_path)
-            logger.info(f"Model file found: {model_path}")
-            logger.info(f"Model file size: {file_size / 1024**3:.2f}GB")
-
-            # Check file is readable
-            with open(model_path, 'rb') as f:
-                header = f.read(100)
-                logger.info(f"Model file header (first 20 bytes): {header[:20].hex()}")
-
-            logger.info("Initializing llama.cpp...")
-            model = Llama(
-                model_path=model_path,
-                n_ctx=4096,
-                n_threads=8,
-                n_batch=512,
-                n_gpu_layers=0,
-                use_mlock=True,
-                verbose=True
-            )
-            logger.info("✅ Model loaded successfully with llama.cpp backend (Q3)")
-
-        except Exception as e:
-            logger.error(f"Failed to load with llama.cpp: {e}")
-            logger.warning("Falling back to transformers (slower but more stable)")
-
-            # Fallback to transformers with 4-bit quantization
-            from transformers import BitsAndBytesConfig
-
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
-            )
-
-            logger.info("Loading model with transformers + bitsandbytes...")
-            model = AutoModelForCausalLM.from_pretrained(
-                "Qwen/Qwen2.5-7B-Instruct",
-                quantization_config=quantization_config,
-                device_map="cpu",
-                trust_remote_code=True,
-                low_cpu_mem_usage=True,
-            )
-            logger.info("✅ Model loaded with 4-bit quantization (transformers)")
+        logger.info("✅ Model loaded successfully with 4-bit quantization")
+        logger.info(f"Model memory footprint: ~{model.get_memory_footprint() / 1024**3:.2f}GB")
 
     except Exception as e:
         logger.error(f"❌ Failed to initialize model: {e}")
@@ -140,21 +102,18 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Cleanup
     logger.info("Shutting down model...")
     model = None
     tokenizer = None
 
 
-
 app = FastAPI(
     title="Qwen2.5 7B Instruct LLM Service (CPU Optimized)",
-    description="CPU-optimized LLM inference service",
+    description="CPU-optimized LLM inference with 4-bit quantization",
     version="1.0.0",
     lifespan=lifespan
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -166,218 +125,148 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     if model is None:
         raise HTTPException(status_code=503, detail="Model not initialized")
     return {
         "status": "healthy",
-        "model": "Qwen2.5-7B-Instruct-Q3_K_M",
-        "backend": "cpu",
-        "threads": 8
+        "model": "Qwen2.5-7B-Instruct-4bit",
+        "backend": "transformers+bitsandbytes",
+        "device": "cpu"
     }
 
 
 @app.get("/v1/models")
 async def list_models():
-    """List available models"""
     return {
         "object": "list",
-        "data": [
-            {
-                "id": "Qwen2.5-7B-Instruct-Q3_K_M",
-                "object": "model",
-                "created": 1677610602,
-                "owned_by": "qwen",
-            }
-        ],
+        "data": [{
+            "id": "Qwen2.5-7B-Instruct-4bit",
+            "object": "model",
+            "created": 1677610602,
+            "owned_by": "qwen",
+        }],
     }
 
 
-def generate_text(prompt: str, temperature: float, top_p: float, top_k: int, 
+def generate_text(prompt: str, temperature: float, top_p: float, top_k: int,
                   max_tokens: int, stop_sequences: List[str]) -> tuple:
-    """Generate text using the model"""
-    
-    if hasattr(model, 'create_completion'):  # llama.cpp backend
-        output = model.create_completion(
-            prompt,
-            max_tokens=max_tokens,
+    inputs = tokenizer(prompt, return_tensors="pt")
+    prompt_tokens = inputs.input_ids.shape[1]
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
-            stop=stop_sequences,
-            echo=False
+            do_sample=True,
+            pad_token_id=tokenizer.eos_token_id,
         )
-        
-        text = output['choices'][0]['text']
-        prompt_tokens = output['usage']['prompt_tokens']
-        completion_tokens = output['usage']['completion_tokens']
-        
-    else:  # transformers backend
-        inputs = tokenizer(prompt, return_tensors="pt")
-        prompt_tokens = inputs.input_ids.shape[1]
-        
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id,
-            )
-        
-        generated_ids = outputs[0][prompt_tokens:]
-        text = tokenizer.decode(generated_ids, skip_special_tokens=True)
-        completion_tokens = len(generated_ids)
-        
-        # Apply stop sequences
-        for stop_seq in stop_sequences:
-            if stop_seq in text:
-                text = text[:text.index(stop_seq)]
-    
+
+    generated_ids = outputs[0][prompt_tokens:]
+    text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    completion_tokens = len(generated_ids)
+
+    for stop_seq in stop_sequences:
+        if stop_seq in text:
+            text = text[:text.index(stop_seq)]
+
     return text, prompt_tokens, completion_tokens
 
 
 @app.post("/v1/completions", response_model=CompletionResponse)
 async def create_completion(request: CompletionRequest):
-    """Generate text completion"""
     if model is None:
         raise HTTPException(status_code=503, detail="Model not initialized")
-    
+
     request_id = f"cmpl-{int(time.time())}"
     created_time = int(time.time())
-    
     stop_sequences = request.stop or []
-    
+
     try:
         if request.stream:
             return StreamingResponse(
-                stream_completion(
-                    request.prompt,
-                    request.temperature,
-                    request.top_p,
-                    request.top_k,
-                    request.max_tokens,
-                    stop_sequences,
-                    request_id,
-                    created_time
-                ),
+                stream_completion(request.prompt, request.temperature, request.top_p,
+                                request.top_k, request.max_tokens, stop_sequences,
+                                request_id, created_time),
                 media_type="text/event-stream"
             )
-        
-        # Non-streaming response
+
         text, prompt_tokens, completion_tokens = await asyncio.to_thread(
-            generate_text,
-            request.prompt,
-            request.temperature,
-            request.top_p,
-            request.top_k,
-            request.max_tokens,
-            stop_sequences
+            generate_text, request.prompt, request.temperature, request.top_p,
+            request.top_k, request.max_tokens, stop_sequences
         )
-        
+
         return CompletionResponse(
             id=request_id,
             created=created_time,
-            model="Qwen2.5-7B-Instruct-Q3_K_M",
-            choices=[
-                {
-                    "text": text,
-                    "index": 0,
-                    "logprobs": None,
-                    "finish_reason": "stop",
-                }
-            ],
+            model="Qwen2.5-7B-Instruct-4bit",
+            choices=[{
+                "text": text,
+                "index": 0,
+                "logprobs": None,
+                "finish_reason": "stop",
+            }],
             usage={
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "total_tokens": prompt_tokens + completion_tokens,
             },
         )
-        
+
     except Exception as e:
-        logger.error(f"Error generating completion: {e}")
+        logger.error(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def stream_completion(prompt: str, temperature: float, top_p: float, 
+async def stream_completion(prompt: str, temperature: float, top_p: float,
                             top_k: int, max_tokens: int, stop_sequences: List[str],
                             request_id: str, created_time: int):
-    """Stream completion tokens"""
     import json
-    
+
     try:
-        if hasattr(model, 'create_completion'):  # llama.cpp
-            output_generator = model.create_completion(
-                prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                stop=stop_sequences,
-                stream=True
-            )
-            
-            for output in output_generator:
-                if 'choices' in output and len(output['choices']) > 0:
-                    text = output['choices'][0].get('text', '')
-                    
-                    chunk = {
-                        "id": request_id,
-                        "object": "text_completion.chunk",
-                        "created": created_time,
-                        "model": "Qwen2.5-7B-Instruct-Q3_K_M",
-                        "choices": [{"text": text, "index": 0, "finish_reason": None}],
-                    }
-                    
-                    yield f"data: {json.dumps(chunk)}\n\n"
-        
-        else:  # transformers
-            inputs = tokenizer(prompt, return_tensors="pt")
-            streamer = TextIteratorStreamer(tokenizer, skip_special_tokens=True)
-            
-            generation_kwargs = {
-                **inputs,
-                "max_new_tokens": max_tokens,
-                "temperature": temperature,
-                "top_p": top_p,
-                "top_k": top_k,
-                "do_sample": True,
-                "streamer": streamer,
+        inputs = tokenizer(prompt, return_tensors="pt")
+        streamer = TextIteratorStreamer(tokenizer, skip_special_tokens=True)
+
+        generation_kwargs = {
+            **inputs,
+            "max_new_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
+            "do_sample": True,
+            "streamer": streamer,
+            "pad_token_id": tokenizer.eos_token_id,
+        }
+
+        thread = Thread(target=model.generate, kwargs=generation_kwargs)
+        thread.start()
+
+        for text in streamer:
+            chunk = {
+                "id": request_id,
+                "object": "text_completion.chunk",
+                "created": created_time,
+                "model": "Qwen2.5-7B-Instruct-4bit",
+                "choices": [{"text": text, "index": 0, "finish_reason": None}],
             }
-            
-            thread = Thread(target=model.generate, kwargs=generation_kwargs)
-            thread.start()
-            
-            for text in streamer:
-                chunk = {
-                    "id": request_id,
-                    "object": "text_completion.chunk",
-                    "created": created_time,
-                    "model": "Qwen2.5-7B-Instruct-Q3_K_M",
-                    "choices": [{"text": text, "index": 0, "finish_reason": None}],
-                }
-                
-                yield f"data: {json.dumps(chunk)}\n\n"
-        
+            yield f"data: {json.dumps(chunk)}\n\n"
+
         yield "data: [DONE]\n\n"
-        
+
     except Exception as e:
-        logger.error(f"Error in streaming: {e}")
+        logger.error(f"Streaming error: {e}")
         yield f"data: {{'error': '{str(e)}'}}\n\n"
 
 
 @app.post("/v1/chat/completions")
 async def create_chat_completion(request: ChatCompletionRequest):
-    """Generate chat completion"""
     if model is None:
         raise HTTPException(status_code=503, detail="Model not initialized")
-    
-    # Convert chat messages to prompt
+
     prompt = format_chat_prompt(request.messages)
-    
-    # Create completion request
+
     completion_request = CompletionRequest(
         prompt=prompt,
         temperature=request.temperature,
@@ -386,39 +275,26 @@ async def create_chat_completion(request: ChatCompletionRequest):
         stop=request.stop or ["<|im_end|>", "<|endoftext|>"],
         stream=request.stream,
     )
-    
+
     return await create_completion(completion_request)
 
 
 def format_chat_prompt(messages: List[ChatMessage]) -> str:
-    """Format messages into Qwen2.5 chat prompt format"""
     prompt = ""
-    
     for message in messages:
-        role = message.role
-        content = message.content
-        prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
-    
+        prompt += f"<|im_start|>{message.role}\n{message.content}<|im_end|>\n"
     prompt += "<|im_start|>assistant\n"
-    
     return prompt
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler"""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "detail": str(e)},
+        content={"error": "Internal server error", "detail": str(exc)},
     )
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        log_level="info",
-        workers=1,  # Single worker to save memory
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info", workers=1)
