@@ -1,259 +1,313 @@
-# Discord LLM Support Bot
+# Discord LLM Support Bot 🤖
 
-A full-featured Discord support bot using Qwen2.5 7B Instruct with RAG and semantic search capabilities.
+Intelligent Discord support bot powered by LLM with semantic search through knowledge base.
 
-## 🎯 Features
+## ✨ Features
 
-- 🤖 **LLM**: Qwen2.5 7B Instruct (Q4 quantization for CPU)
-- 🔍 **RAG**: Semantic search through FAQ and tickets
+- 🤖 **CPU LLM**: Qwen2.5-3B (no GPU required!)
+- 🔍 **RAG Search**: Automatic search through FAQ and resolved tickets
 - 🌐 **Multilingual**: Russian and English support
 - 🛡️ **Security**: Prompt injection protection and rate limiting
 - 📊 **Logging**: Discord webhooks with rich embeds
 - 🐳 **Docker**: Full containerization
-- 💻 **CPU Optimized**: Works without GPU
 
 ## 📋 Requirements
 
 ### Hardware
-- **CPU**: 8 cores / 8 threads ✅
-- **RAM**: 16GB ✅
+- **CPU**: 8+ cores
+- **RAM**: 16GB
 - **Storage**: 10GB free space
 - **GPU**: Not required ✅
 
 ### Software
 - Linux (tested on Arch Linux)
 - Docker + Docker Compose
-- Python 3.10+ (for setup scripts)
+- Python 3.10+ (for scripts)
 
 ## 🚀 Quick Start
 
-### 1. Installation
+### 1. Clone Repository
 
 ```bash
-# Clone the repository
 git clone https://github.com/hitomihiumi/discord-llm.git
 cd discord-llm
-
-# Run setup
-chmod +x scripts/*.sh
-./scripts/setup.sh
 ```
 
-### 2. Configuration
-
-Edit `.env`:
+### 2. Create .env File
 
 ```bash
+cp .env.example .env
 nano .env
+```
 
-# Add your Discord bot token
+Fill in:
+
+```env
+# REQUIRED: Discord bot token
 DISCORD_TOKEN=your_token_here
 
-# Optional: webhook for logs
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+# OPTIONAL: Webhook for logs
+DISCORD_WEBHOOK_URL=
+
+# Leave these as default
+LLM_API_URL=http://llm-service:8000
+RAG_API_URL=http://embedding-service:8001
 ```
 
 ### 3. Start Services
 
 ```bash
-# Start all services
+# Make scripts executable
+chmod +x scripts/*.sh
+
+# Start everything
 ./scripts/start.sh
 
-# Load knowledge base (after services are ready)
+# Wait for models to load (2-3 minutes)
+./scripts/logs.sh
+```
+
+**First run**: Models will download ~20GB. This takes 5-10 minutes depending on your internet.
+
+### 4. Load Knowledge Base
+
+After services are ready:
+
+```bash
 ./scripts/load_dataset.sh
 ```
 
-### 4. Verification
+### 5. Done! 🎉
 
-```bash
-# Check status
-docker-compose ps
+Invite your bot to a server and mention it:
 
-# Check logs
-./scripts/logs.sh
-
-# Check service health
-curl http://localhost:8000/health
-curl http://localhost:8001/health
+```
+@YourBot How do you feel?
 ```
 
 ## 📁 Project Structure
 
 ```
 discord-llm/
-├── discord-bot/          # Discord.js client
-│   ├── src/
-│   ├── Dockerfile
-│   └── package.json
-├── llm-service/          # Qwen2.5 7B inference
-│   ├── src/
-│   ├── scripts/
-│   └── Dockerfile
-├── embedding-service/    # RAG and embeddings
-│   ├── src/
-│   └── Dockerfile
-├── datasets/             # FAQ and tickets
-│   └── knowledge_base.json
-├── scripts/              # Utilities
-│   ├── setup.sh
-│   ├── start.sh
-│   ├── stop.sh
-│   └── load_dataset.sh
-├── docker-compose.yml    # Orchestration
-└── README.md
+├── discord-bot/          # Discord bot (TypeScript)
+├── llm-service/          # LLM service (Python, Phi-3.5 or Qwen)
+├── embedding-service/    # RAG service (Python, ChromaDB)
+├── datasets/             # Knowledge base (FAQ + tickets)
+└── scripts/              # Utility scripts
 ```
 
 ## 🔧 Management
 
 ```bash
 # Start
-./scripts/start.sh
+docker-compose up -d
 
 # Stop
-./scripts/stop.sh
-
-# Logs (all services)
-./scripts/logs.sh
-
-# Logs (specific service)
-./scripts/logs.sh discord-bot
-./scripts/logs.sh llm-service
-./scripts/logs.sh embedding-service
+docker-compose down
 
 # Restart
 docker-compose restart
 
-# Rebuild
+# Logs (all services)
+docker-compose logs -f
+
+# Logs (specific service)
+docker-compose logs -f discord-bot
+docker-compose logs -f llm-service
+docker-compose logs -f embedding-service
+
+# Rebuild (after changes)
 docker-compose build --no-cache
+docker-compose up -d
 ```
 
 ## 📊 Performance
 
-### Expected Speed (Your Hardware)
+On your hardware (8 cores, 16GB RAM):
 
-| Service | Metric | Value |
-|---------|--------|-------|
-| LLM | Tokens/sec | 2-4 |
-| LLM | Short answer (50 tok) | ~15-20 sec |
-| LLM | Medium answer (200 tok) | ~60-80 sec |
-| Embeddings | Texts/sec | 10-15 |
-| RAG Search | Latency | 50-100ms |
-| RAM Usage | Total | ~14GB |
+| Metric | Value |
+|--------|-------|
+| LLM Speed | 10-20 tokens/sec |
+| Short answer (50 tokens) | ~5-10 seconds |
+| Medium answer (256 tokens) | ~20-40 seconds |
+| RAG Search | 50-100ms |
+| RAM Usage | ~10-12GB |
 
-## 📚 Dataset
+## 📚 Knowledge Base
 
-Dataset is located in `datasets/knowledge_base.json` and contains:
+File: `datasets/knowledge_base.json`
 
-- ✅ **49 FAQ** about Minecraft Vortex modpack
-- ✅ **3 FAQ** about Discord bots
-- ✅ **6 Resolved Tickets** with solutions
+**Current content:**
+- 49 FAQ about Minecraft Vortex modpack
+- 3 FAQ about Discord bots
+- 6 Resolved tickets with solutions
 
 ### Adding New Data
 
-Edit `datasets/knowledge_base.json`:
+1. Edit `datasets/knowledge_base.json`:
 
 ```json
 {
   "faqs": [
     {
-      "id": "unique-id",
+      "id": "faq-custom-001-en",
       "question": "Your question?",
       "answer": "Your answer",
       "tags": ["tag1", "tag2"],
-      "language": "ru"
+      "language": "en"
     }
   ]
 }
 ```
 
-Then reload:
+2. Reload data:
 
 ```bash
-./scripts/load_dataset.sh
+# Reset database
+curl -X POST http://localhost:8001/reset
+
+# Load again
+docker-compose exec embedding-service python src/ingest_data.py /app/datasets/knowledge_base.json
 ```
 
-## 🛡️ Security
+## 🛠️ Configuration
 
-Implemented features:
+### Change LLM Model
 
-- ✅ Input validation
-- ✅ Prompt injection protection
-- ✅ Rate limiting (5 req/min)
-- ✅ Content sanitization
-- ✅ Token security
-- ✅ Webhook logging
+In `llm-service/src/main.py` you can switch models:
 
-## 📝 Logging
+```python
+# Qwen2.5-3B (better quality, 3GB)
+"Qwen/Qwen2.5-3B-Instruct"
 
-### Console Logs
-
-```bash
-./scripts/logs.sh
+# Qwen2.5-1.5B (fastest, 2GB)
+"Qwen/Qwen2.5-1.5B-Instruct"
 ```
 
-### Discord Webhooks
+### Change Rate Limits
 
-Create a webhook in Discord and add to `.env`:
+In `discord-bot/.env`:
 
 ```env
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+# Max requests per minute
+RATE_LIMIT_MAX=5
+
+# Max input length
+MAX_INPUT_LENGTH=2000
+
+# Message history
+MAX_HISTORY_LENGTH=10
 ```
 
-Log types:
-- 💬 User Queries
-- 🤖 Bot Responses
-- ⏳ Rate Limits
-- 🚨 Security Alerts
-- ❌ Errors
-- 📊 Hourly Metrics
+### Change LLM Parameters
 
-## 🔍 Troubleshooting
+In `discord-bot/src/index.ts`:
 
-### LLM Service Slow to Start
-
-First launch loads the model (2-3 min). Subsequent starts are faster.
-
-```bash
-# Check status
-docker-compose logs -f llm-service
+```typescript
+const response = await llmService.generateChat(messages, {
+  temperature: 0.3,  // Precision (0.1-1.0)
+  maxTokens: 512,    // Response length
+  language,
+});
 ```
+
+## 🐛 Troubleshooting
 
 ### Bot Not Responding
 
-1. Check token in `.env`
-2. Verify services are running
-3. Check logs
-
 ```bash
+# 1. Check all services are running
 docker-compose ps
-./scripts/logs.sh discord-bot
+
+# 2. Check bot logs
+docker-compose logs discord-bot
+
+# 3. Verify token in .env
+cat .env | grep DISCORD_TOKEN
 ```
 
-### Out of Memory
+### LLM Service Takes Long to Start
 
-Reduce allocated memory or close other applications:
+First run downloads model. Wait 5-10 minutes:
 
 ```bash
-# Check usage
-docker stats
-
-# Free memory
-sudo sysctl -w vm.drop_caches=3
+docker-compose logs -f llm-service
+# Wait for "Model loaded successfully"
 ```
 
 ### Slow Responses
 
 This is normal on CPU. Optimizations:
 
-1. Reduce `max_tokens` in `discord-bot/src/services/llm.service.ts`
-2. Use smaller model (3B instead of 7B)
-3. Enable caching
+1. **Reduce maxTokens** in bot (256 instead of 512)
+2. **Use lighter model** (1.5B instead of 3B)
+3. **Disable history** (comment out recentHistory)
 
-## 📦 Updates
+### Out of Memory
 
 ```bash
-# Stop services
-./scripts/stop.sh
+# Check usage
+docker stats
+
+# Reduce limits in docker-compose.yml
+memory: 6G  # for llm-service
+memory: 3G  # for embedding-service
+```
+
+### RAG Not Finding Documents
+
+```bash
+# Check data is loaded
+curl http://localhost:8001/stats
+
+# If empty - reload
+docker-compose exec embedding-service python src/ingest_data.py /app/datasets/knowledge_base.json
+```
+
+## 🔒 Security
+
+Built-in protection:
+
+- ✅ Input validation
+- ✅ Prompt injection protection
+- ✅ Rate limiting (5 requests/minute)
+- ✅ Suspicious pattern filtering
+- ✅ All actions logged
+
+## 📝 Logging
+
+### Console
+
+All logs are written to console:
+
+```bash
+docker-compose logs -f
+```
+
+### Discord Webhooks
+
+Create webhook in Discord channel:
+1. Channel Settings → Integrations → Webhooks
+2. Copy URL
+3. Add to `.env`:
+
+```env
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK
+```
+
+Logs include:
+- 💬 User queries
+- 🤖 Bot responses
+- ⏳ Rate limit violations
+- 🚨 Security alerts
+- ❌ Errors
+- 📊 Hourly statistics
+
+## 🔄 Updates
+
+```bash
+# Stop
+docker-compose down
 
 # Update code
 git pull
@@ -262,87 +316,44 @@ git pull
 docker-compose build --no-cache
 
 # Start
-./scripts/start.sh
+docker-compose up -d
 ```
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────┐
-│   Discord   │
-│   Server    │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────────────────┐
-│         Discord Bot Service              │
-│  ┌────────────────────────────────────┐ │
-│  │  • Message Handler                 │ │
-│  │  • Security & Rate Limiting        │ │
-│  │  • Conversation Manager            │ │
-│  │  • Smart Message Splitter          │ │
-│  │  • Discord Webhook Logger          │ │
-│  └────────────────────────────────────┘ │
-└─────────┬───────────────────┬───────────┘
-          │                   │
-          ▼                   ▼
-┌──────────────────┐  ┌──────────────────┐
-│  LLM Service     │  │  Embedding/RAG   │
-│                  │  │    Service       │
-│  • Qwen2.5 7B    │  │                  │
-│  • Q4 Quant      │  │  • ChromaDB      │
-│  • llama.cpp     │  │  • Multilingual  │
-│  • Streaming     │  │  • Semantic      │
-│                  │  │    Search        │
-└──────────────────┘  └────────┬─────────┘
-                               │
-                               ▼
-                      ┌──────────────────┐
-                      │  Knowledge Base  │
-                      │                  │
-                      │  • 49 FAQ        │
-                      │  • 6 Tickets     │
-                      │  • RU/EN         │
-                      └──────────────────┘
+Discord User
+     ↓
+Discord Bot (Node.js)
+    ↙         ↘
+LLM Service   Embedding Service
+  (Qwen)       (ChromaDB + RAG)
+    ↓              ↓
+Response    Knowledge Base (JSON)
 ```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📄 License
-
-MIT License
-
-## 🆘 Support
-
-- 🐛 [Issue Tracker](https://github.com/hitomihiumi/discord-llm/issues)
-
-## 🙏 Acknowledgments
-
-- [Qwen Team](https://github.com/QwenLM) - For the amazing LLM
-- [llama.cpp](https://github.com/ggerganov/llama.cpp) - For CPU optimization
-- [ChromaDB](https://www.trychroma.com/) - For vector database
-- Minecraft Vortex community - For the inspiration
 
 ## 📈 Roadmap
 
-- [ ] Add Redis caching for frequent queries
-- [ ] Implement admin commands
-- [ ] Add more languages support
-- [ ] Create web dashboard
-- [ ] Add voice channel support
-- [ ] Implement slash commands
-- [ ] Add database for analytics
-- [ ] Create Docker Hub images
+- [ ] Redis caching for frequent queries
+- [ ] Discord slash commands
+- [ ] More languages (UA, DE, etc)
+- [ ] Analytics database
+- [ ] Docker Hub images
 
----
+## 🤝 Contributing
 
-Made with ❤️ for the Minecraft Vortex community
+1. Fork repository
+2. Create branch: `git checkout -b feature/name`
+3. Make changes
+4. Push: `git push origin feature/name`
+5. Create Pull Request
 
-**Star ⭐ this repo if you find it useful!**
+## 🙏 Acknowledgments
+
+- [Qwen](https://github.com/QwenLM) - for amazing models
+- [ChromaDB](https://www.trychroma.com/) - for vector database
+
+## 📞 Support
+
+- 🐛 [Create Issue](https://github.com/hitomihiumi/discord-llm/issues)
+- 💬 [Discussions](https://github.com/hitomihiumi/discord-llm/discussions)
