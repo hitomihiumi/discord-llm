@@ -1,0 +1,62 @@
+# Environment variables
+.env
+*.env
+!.env.example
+
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Models
+llm-service/models/*.gguf
+embedding-service/models/
+
+# Data
+embedding-service/data/chroma/
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+llm-service/logs/
+discord-bot/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+*.tmp

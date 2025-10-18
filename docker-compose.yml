@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # Discord Bot Service
+  discord-bot:
+    build:
+      context: ./discord-bot
+      dockerfile: Dockerfile
+    container_name: discord-bot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - LLM_API_URL=http://llm-service:8000
+      - RAG_API_URL=http://embedding-service:8001
+      - RATE_LIMIT_WINDOW=60000
+      - RATE_LIMIT_MAX=5
+      - MAX_INPUT_LENGTH=2000
+      - MAX_HISTORY_LENGTH=10
+      - HISTORY_TTL=3600000
+      - LOG_LEVEL=info
+      - LOG_QUERIES=true
+      - LOG_RESPONSES=true
+      - LOG_ERRORS=true
+      - LOG_SECURITY=true
+    volumes:
+      - ./discord-bot/logs:/app/logs
+      - ./discord-bot/src:/app/src
+    depends_on:
+      llm-service:
+        condition: service_healthy
+      embedding-service:
+        condition: service_healthy
+    networks:
+      - discord-llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # LLM Service (CPU Optimized)
+  llm-service:
+    build:
+      context: ./llm-service
+      dockerfile: Dockerfile
+    container_name: llm-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OMP_NUM_THREADS=8
+      - MKL_NUM_THREADS=8
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./llm-service/models:/app/models
+      - ./llm-service/logs:/app/logs
+      - ./llm-service/src:/app/src
+    networks:
+      - discord-llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 12G
+        reservations:
+          cpus: '6'
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # Embedding & RAG Service
+  embedding-service:
+    build:
+      context: ./embedding-service
+      dockerfile: Dockerfile
+    container_name: embedding-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - OMP_NUM_THREADS=4
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./embedding-service/data:/app/data
+      - ./embedding-service/models:/app/models
+      - ./embedding-service/src:/app/src
+      - ./datasets:/app/datasets:ro
+    networks:
+      - discord-llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  discord-llm-network:
+    driver: bridge
+
+volumes:
+  llm-models:
+  embedding-models:
+  chroma-data:
