@@ -63,69 +63,88 @@ class ChatCompletionRequest(BaseModel):
 async def lifespan(app: FastAPI):
     """Initialize and cleanup the model"""
     global model, tokenizer
-    
+
     logger.info("Initializing Qwen2.5 7B model (CPU optimized)...")
-    
+
     try:
-        model_name = "Qwen/Qwen2.5-7B-Instruct-GGUF"
-        quant_file = "qwen2.5-7b-instruct-q3_k_m.gguf"
-        
         logger.info("Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(
             "Qwen/Qwen2.5-7B-Instruct",
             trust_remote_code=True
         )
-        
-        logger.info("Loading quantized model (Q3_K_M - ~3GB)...")
+
+        logger.info("Loading quantized model (Q3_K_M - ~3.6GB)...")
         logger.info("This may take 1-2 minutes on first run...")
 
         # Use GGUF with llama.cpp backend for CPU efficiency
         try:
             from llama_cpp import Llama
+            import os
 
+            model_path = "/app/models/qwen2.5-7b-instruct-q3_k_m.gguf"
+
+            # Check file exists and size
+            if not os.path.exists(model_path):
+                logger.error(f"Model file not found: {model_path}")
+                logger.info(f"Files in /app/models/: {os.listdir('/app/models/')}")
+                raise FileNotFoundError(f"Model not found: {model_path}")
+
+            file_size = os.path.getsize(model_path)
+            logger.info(f"Model file found: {model_path}")
+            logger.info(f"Model file size: {file_size / 1024**3:.2f}GB")
+
+            # Check file is readable
+            with open(model_path, 'rb') as f:
+                header = f.read(100)
+                logger.info(f"Model file header (first 20 bytes): {header[:20].hex()}")
+
+            logger.info("Initializing llama.cpp...")
             model = Llama(
-                model_path="/app/models/qwen2.5-7b-instruct-q3_k_m.gguf",
+                model_path=model_path,
                 n_ctx=4096,
                 n_threads=8,
                 n_batch=512,
                 n_gpu_layers=0,
                 use_mlock=True,
-                verbose=False
+                verbose=True
             )
             logger.info("✅ Model loaded successfully with llama.cpp backend (Q3)")
-            
-        except ImportError:
-            logger.warning("llama-cpp-python not found, using transformers (slower)")
-            
+
+        except Exception as e:
+            logger.error(f"Failed to load with llama.cpp: {e}")
+            logger.warning("Falling back to transformers (slower but more stable)")
+
             # Fallback to transformers with 4-bit quantization
             from transformers import BitsAndBytesConfig
-            
+
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4"
             )
-            
+
+            logger.info("Loading model with transformers + bitsandbytes...")
             model = AutoModelForCausalLM.from_pretrained(
-                "Qwen/Qwen2.5-7B-Instruct-Q3_K_M",
+                "Qwen/Qwen2.5-7B-Instruct",
                 quantization_config=quantization_config,
                 device_map="cpu",
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
             )
-            logger.info("✅ Model loaded with 3-bit quantization")
-        
+            logger.info("✅ Model loaded with 4-bit quantization (transformers)")
+
     except Exception as e:
         logger.error(f"❌ Failed to initialize model: {e}")
         raise
-    
+
     yield
-    
+
     # Cleanup
     logger.info("Shutting down model...")
     model = None
     tokenizer = None
+
 
 
 app = FastAPI(
