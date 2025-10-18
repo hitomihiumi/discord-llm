@@ -18,9 +18,25 @@ if [ -z "$DISCORD_TOKEN" ] || [ "$DISCORD_TOKEN" == "your_discord_bot_token_here
     exit 1
 fi
 
-# Start services
-echo "Starting services..."
-docker-compose up -d
+echo "Choose an mode to start services:"
+echo "  1) Normal mode"
+echo "  2) Without Bot (only LLM and Embedding services)"
+echo -n "Enter choice [1-2]: "
+read -r choice
+case $choice in
+    1)
+        echo "Starting all services including Discord Bot..."
+        docker-compose -f docker-compose.yaml up
+        ;;
+    2)
+        echo "Starting only LLM and Embedding services..."
+        docker-compose -f docker-compose.services-only.yaml up
+        ;;
+    *)
+        echo "Invalid choice. Exiting."
+        exit 1
+        ;;
+esac
 
 echo ""
 echo "✅ Services started!"

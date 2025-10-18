@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # LLM Service (CPU Optimized)
+  llm-service:
+    build:
+      context: ./llm-service
+      dockerfile: Dockerfile
+    container_name: llm-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OMP_NUM_THREADS=8
+      - MKL_NUM_THREADS=8
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./llm-service/models:/app/models
+      - ./llm-service/logs:/app/logs
+      - ./llm-service/src:/app/src
+    networks:
+      - discord-llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 12G
+        reservations:
+          cpus: '6'
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # Embedding & RAG Service
+  embedding-service:
+    build:
+      context: ./embedding-service
+      dockerfile: Dockerfile
+    container_name: embedding-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - OMP_NUM_THREADS=4
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./embedding-service/data:/app/data
+      - ./embedding-service/models:/app/models
+      - ./embedding-service/src:/app/src
+      - ./datasets:/app/datasets:ro
+    networks:
+      - discord-llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  discord-llm-network:
+    driver: bridge
+
+volumes:
+  llm-models:
+  embedding-models:
+  chroma-data:
