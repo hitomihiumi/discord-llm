@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     libopenblas-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

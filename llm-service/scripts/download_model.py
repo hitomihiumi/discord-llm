@@ -14,7 +14,7 @@ try:
     # Download GGUF quantized model
     model_path = hf_hub_download(
         repo_id="Qwen/Qwen2.5-7B-Instruct-GGUF",
-        filename="qwen2.5-7b-instruct-q4_k_m.gguf",
+        filename="qwen2.5-7b-instruct-q3_k_m.gguf",
         local_dir=MODEL_DIR,
         local_dir_use_symlinks=False
     )
@@ -27,6 +27,6 @@ except Exception as e:
     print(f"❌ Failed to download model: {e}")
     print("\nAlternative: Manual download")
     print("1. Visit: https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF")
-    print("2. Download: qwen2.5-7b-instruct-q4_k_m.gguf")
+    print("2. Download: qwen2.5-7b-instruct-q3_k_m.gguf")
     print(f"3. Place in: {MODEL_DIR}/")
     exit(1)

@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events, Message } from 'discord.js';
+import { Client, GatewayIntentBits, Events, Message, TextChannel } from 'discord.js';
 import { config } from './config';
 import { LLMService } from './services/llm.service';
 import { RAGService } from './services/rag.service';
@@ -63,12 +63,8 @@ client.once(Events.ClientReady, async (c) => {
 client.on(Events.MessageCreate, async (message: Message) => {
   // Ignore bot messages
   if (message.author.bot) return;
-
-  // Only respond to mentions or DMs
-  const isMentioned = message.mentions.has(client.user!);
-  const isDM = message.channel.isDMBased();
   
-  if (!isMentioned && !isDM) return;
+  if (!message.mentions.has(client.user!) && message.channel.isDMBased()) return;
 
   const startTime = Date.now();
   metrics.totalQueries++;
@@ -86,7 +82,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
     }
 
     // Show typing indicator
-    await message.channel.sendTyping();
+    await (message.channel as TextChannel).sendTyping();
 
     // Clean message content
     let userQuery = message.content.replace(/<@!?\d+>/g, '').trim();

@@ -289,6 +289,7 @@ export class MessageSplitter {
     text: string,
     options: SplitOptions & { asReply?: boolean; delay?: number } = {}
   ): Promise<void> {
+    if (message.channel.isDMBased()) return;
     const { asReply = true, delay = 500, ...splitOptions } = options;
     const chunks = this.split(text, splitOptions);
 

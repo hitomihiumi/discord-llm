@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
     
     try:
         model_name = "Qwen/Qwen2.5-7B-Instruct-GGUF"
-        quant_file = "qwen2.5-7b-instruct-q4_k_m.gguf"
+        quant_file = "qwen2.5-7b-instruct-q3_k_m.gguf"
         
         logger.info("Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(
@@ -76,23 +76,23 @@ async def lifespan(app: FastAPI):
             trust_remote_code=True
         )
         
-        logger.info("Loading quantized model (Q4_K_M - ~4GB)...")
-        logger.info("This may take 2-3 minutes on first run...")
-        
+        logger.info("Loading quantized model (Q3_K_M - ~3GB)...")
+        logger.info("This may take 1-2 minutes on first run...")
+
         # Use GGUF with llama.cpp backend for CPU efficiency
         try:
             from llama_cpp import Llama
-            
+
             model = Llama(
-                model_path=f"./models/{quant_file}",
-                n_ctx=4096,  # Context window
-                n_threads=8,  # Use all CPU threads
-                n_batch=512,  # Batch size for prompt processing
-                n_gpu_layers=0,  # CPU only
-                use_mlock=True,  # Keep model in RAM
+                model_path="/app/models/qwen2.5-7b-instruct-q3_k_m.gguf",
+                n_ctx=4096,
+                n_threads=8,
+                n_batch=512,
+                n_gpu_layers=0,
+                use_mlock=True,
                 verbose=False
             )
-            logger.info("✅ Model loaded successfully with llama.cpp backend")
+            logger.info("✅ Model loaded successfully with llama.cpp backend (Q3)")
             
         except ImportError:
             logger.warning("llama-cpp-python not found, using transformers (slower)")
@@ -108,13 +108,13 @@ async def lifespan(app: FastAPI):
             )
             
             model = AutoModelForCausalLM.from_pretrained(
-                "Qwen/Qwen2.5-7B-Instruct",
+                "Qwen/Qwen2.5-7B-Instruct-Q3_K_M",
                 quantization_config=quantization_config,
                 device_map="cpu",
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
             )
-            logger.info("✅ Model loaded with 4-bit quantization")
+            logger.info("✅ Model loaded with 3-bit quantization")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize model: {e}")
@@ -152,7 +152,7 @@ async def health_check():
         raise HTTPException(status_code=503, detail="Model not initialized")
     return {
         "status": "healthy",
-        "model": "Qwen2.5-7B-Instruct-Q4",
+        "model": "Qwen2.5-7B-Instruct-Q3_K_M",
         "backend": "cpu",
         "threads": 8
     }
@@ -165,7 +165,7 @@ async def list_models():
         "object": "list",
         "data": [
             {
-                "id": "Qwen2.5-7B-Instruct-Q4",
+                "id": "Qwen2.5-7B-Instruct-Q3_K_M",
                 "object": "model",
                 "created": 1677610602,
                 "owned_by": "qwen",
@@ -261,7 +261,7 @@ async def create_completion(request: CompletionRequest):
         return CompletionResponse(
             id=request_id,
             created=created_time,
-            model="Qwen2.5-7B-Instruct-Q4",
+            model="Qwen2.5-7B-Instruct-Q3_K_M",
             choices=[
                 {
                     "text": text,
@@ -308,7 +308,7 @@ async def stream_completion(prompt: str, temperature: float, top_p: float,
                         "id": request_id,
                         "object": "text_completion.chunk",
                         "created": created_time,
-                        "model": "Qwen2.5-7B-Instruct-Q4",
+                        "model": "Qwen2.5-7B-Instruct-Q3_K_M",
                         "choices": [{"text": text, "index": 0, "finish_reason": None}],
                     }
                     
@@ -336,7 +336,7 @@ async def stream_completion(prompt: str, temperature: float, top_p: float,
                     "id": request_id,
                     "object": "text_completion.chunk",
                     "created": created_time,
-                    "model": "Qwen2.5-7B-Instruct-Q4",
+                    "model": "Qwen2.5-7B-Instruct-Q3_K_M",
                     "choices": [{"text": text, "index": 0, "finish_reason": None}],
                 }
                 

@@ -7,10 +7,10 @@ sentence-transformers==2.3.1
 torch>=2.1.0
 transformers>=4.36.0
 
-# Vector DB
+# Vector DB with compatible NumPy version
 chromadb==0.4.22
+numpy==1.24.3
 
 # Utilities
-numpy>=1.24.0
 requests>=2.31.0
 python-multipart==0.0.6
