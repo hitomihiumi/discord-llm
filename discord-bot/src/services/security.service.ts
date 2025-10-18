@@ -1,5 +1,5 @@
-import { logger } from '../utils/logger';
-import { config } from '../config';
+import { logger } from "../utils/logger";
+import { config } from "../config";
 
 interface RateLimitEntry {
   count: number;
@@ -41,9 +41,10 @@ export class SecurityService {
   }
 
   validateInput(input: string): boolean {
-    // Check length
-    if (input.length > config.security.maxInputLength) {
-      logger.warn('Input exceeds max length');
+    // Check length (увеличено для поддержки файлов)
+    const maxLength = config.security.maxInputLength + 10000; // +10k для файлов
+    if (input.length > maxLength) {
+      logger.warn(`Input exceeds max length: ${input.length} > ${maxLength}`);
       return false;
     }
 

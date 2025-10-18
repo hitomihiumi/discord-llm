@@ -1,7 +1,7 @@
-import { config } from '../config';
+import { config } from "../config";
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: number;
 }
@@ -9,9 +9,9 @@ interface Message {
 export class ConversationManager {
   private conversations: Map<string, Message[]> = new Map();
 
-  addMessage(userId: string, message: Omit<Message, 'timestamp'>): void {
+  addMessage(userId: string, message: Omit<Message, "timestamp">): void {
     const conversation = this.conversations.get(userId) || [];
-    
+
     conversation.push({
       ...message,
       timestamp: Date.now(),
@@ -31,7 +31,7 @@ export class ConversationManager {
 
     // Filter out expired messages
     const validMessages = conversation.filter(
-      (msg) => now - msg.timestamp < config.conversation.historyTTL
+      (msg) => now - msg.timestamp < config.conversation.historyTTL,
     );
 
     // Update conversation
@@ -51,9 +51,9 @@ export class ConversationManager {
     const now = Date.now();
     for (const [userId, messages] of this.conversations.entries()) {
       const validMessages = messages.filter(
-        (msg) => now - msg.timestamp < config.conversation.historyTTL
+        (msg) => now - msg.timestamp < config.conversation.historyTTL,
       );
-      
+
       if (validMessages.length === 0) {
         this.conversations.delete(userId);
       } else if (validMessages.length !== messages.length) {

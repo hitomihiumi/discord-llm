@@ -1,12 +1,12 @@
-import axios from 'axios';
-import { logger } from '../utils/logger';
+import axios from "axios";
+import { logger } from "../utils/logger";
 
 interface SearchResult {
   content: string;
   score: number;
   metadata: {
     id: string;
-    type: 'faq' | 'ticket';
+    type: "faq" | "ticket";
     language: string;
   };
 }
@@ -18,7 +18,7 @@ export class RAGService {
     this.apiUrl = apiUrl;
   }
 
-  async search(query: string, language: 'ru' | 'en', topK: number = 3): Promise<string[]> {
+  async search(query: string, language: "ru" | "en", topK: number = 3): Promise<string[]> {
     try {
       const response = await axios.post<{ results: SearchResult[] }>(
         `${this.apiUrl}/search`,
@@ -30,20 +30,20 @@ export class RAGService {
         {
           timeout: 10000,
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       const results = response.data.results.map((result) => {
-        const typeLabel = result.metadata.type === 'faq' ? 'FAQ' : 'Решенный тиккет';
+        const typeLabel = result.metadata.type === "faq" ? "FAQ" : "Решенный тиккет";
         return `[${typeLabel} - ID: ${result.metadata.id}]\n${result.content}`;
       });
 
       logger.info(`RAG found ${results.length} relevant documents`);
       return results;
     } catch (error) {
-      logger.error('RAG API error:', error);
+      logger.error("RAG API error:", error);
       return []; // Return empty context on error
     }
   }

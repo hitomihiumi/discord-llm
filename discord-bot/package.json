@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "watch": "nodemon --watch src --exec ts-node src/index.ts"
+    "watch": "nodemon --watch src --exec ts-node src/index.ts",
+    "biome-write": "npx @biomejs/biome format --write ."
   },
   "dependencies": {
     "discord.js": "^14.14.1",
@@ -16,6 +17,7 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@types/node": "^20.11.5",
     "@types/jest": "^29.5.0",
     "typescript": "^5.3.3",

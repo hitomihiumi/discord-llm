@@ -1,11 +1,11 @@
-import axios from 'axios';
-import { logger } from '../utils/logger';
+import axios from "axios";
+import { logger } from "../utils/logger";
 
 interface GenerateOptions {
   temperature?: number;
   maxTokens?: number;
   topP?: number;
-  language?: 'ru' | 'en';
+  language?: "ru" | "en";
 }
 
 export class LLMService {
@@ -24,21 +24,21 @@ export class LLMService {
           temperature: options.temperature || 0.7,
           max_tokens: options.maxTokens || 512,
           top_p: options.topP || 0.9,
-          stop: ['Пользователь:', 'User:'],
+          stop: ["Пользователь:", "User:"],
         },
         {
           timeout: 120000, // 120 seconds
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       const text = response.data.choices[0].text.trim();
       return text;
     } catch (error) {
-      logger.error('LLM API error:', error);
-      throw new Error('Failed to generate response from LLM');
+      logger.error("LLM API error:", error);
+      throw new Error("Failed to generate response from LLM");
     }
   }
 

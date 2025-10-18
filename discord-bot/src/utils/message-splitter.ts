@@ -1,8 +1,8 @@
-import { Message } from 'discord.js';
+import { Message } from "discord.js";
 
 interface SplitOptions {
   maxLength?: number;
-  splitBy?: 'paragraph' | 'sentence' | 'word';
+  splitBy?: "paragraph" | "sentence" | "word";
   prefix?: string;
   preserveCodeBlocks?: boolean;
 }
@@ -17,8 +17,8 @@ export class MessageSplitter {
   static split(text: string, options: SplitOptions = {}): string[] {
     const {
       maxLength = this.DISCORD_MAX_LENGTH,
-      splitBy = 'paragraph',
-      prefix = '',
+      splitBy = "paragraph",
+      prefix = "",
       preserveCodeBlocks = true,
     } = options;
 
@@ -31,11 +31,11 @@ export class MessageSplitter {
     }
 
     switch (splitBy) {
-      case 'paragraph':
+      case "paragraph":
         return this.splitByParagraph(text, maxLength, prefix);
-      case 'sentence':
+      case "sentence":
         return this.splitBySentence(text, maxLength, prefix);
-      case 'word':
+      case "word":
         return this.splitByWord(text, maxLength, prefix);
       default:
         return this.splitByParagraph(text, maxLength, prefix);
@@ -45,11 +45,7 @@ export class MessageSplitter {
   /**
    * Split text while preserving code blocks
    */
-  private static splitWithCodeBlocks(
-    text: string,
-    maxLength: number,
-    prefix: string
-  ): string[] {
+  private static splitWithCodeBlocks(text: string, maxLength: number, prefix: string): string[] {
     const chunks: string[] = [];
     const codeBlocks: Array<{ start: number; end: number; content: string }> = [];
 
@@ -74,11 +70,7 @@ export class MessageSplitter {
       // Add text before code block
       const textBefore = text.substring(currentPos, block.start);
       if (textBefore) {
-        const textChunks = this.splitByParagraph(
-          textBefore,
-          maxLength - currentChunk.length,
-          ''
-        );
+        const textChunks = this.splitByParagraph(textBefore, maxLength - currentChunk.length, "");
 
         for (let i = 0; i < textChunks.length; i++) {
           if (currentChunk.length + textChunks[i].length > maxLength) {
@@ -99,22 +91,22 @@ export class MessageSplitter {
 
         // If code block itself is too long, split it
         if (block.content.length > maxLength - prefix.length) {
-          const codeLines = block.content.split('\n');
-          const lang = codeLines[0].replace('```', '');
-          let tempBlock = '```' + lang + '\n';
+          const codeLines = block.content.split("\n");
+          const lang = codeLines[0].replace("```", "");
+          let tempBlock = "```" + lang + "\n";
 
           for (let i = 1; i < codeLines.length - 1; i++) {
-            const line = codeLines[i] + '\n';
+            const line = codeLines[i] + "\n";
             if (tempBlock.length + line.length + 4 > maxLength) {
-              chunks.push(tempBlock + '```');
-              tempBlock = '```' + lang + '\n' + line;
+              chunks.push(tempBlock + "```");
+              tempBlock = "```" + lang + "\n" + line;
             } else {
               tempBlock += line;
             }
           }
 
           if (tempBlock.length > 4 + lang.length) {
-            chunks.push(tempBlock + '```');
+            chunks.push(tempBlock + "```");
           }
           currentChunk = prefix;
         } else {
@@ -131,7 +123,7 @@ export class MessageSplitter {
     // Add remaining text
     const textAfter = text.substring(currentPos);
     if (textAfter) {
-      const textChunks = this.splitByParagraph(textAfter, maxLength, '');
+      const textChunks = this.splitByParagraph(textAfter, maxLength, "");
       for (const chunk of textChunks) {
         if (currentChunk.length + chunk.length > maxLength) {
           chunks.push(currentChunk);
@@ -152,17 +144,13 @@ export class MessageSplitter {
   /**
    * Split by paragraphs (double newline)
    */
-  private static splitByParagraph(
-    text: string,
-    maxLength: number,
-    prefix: string
-  ): string[] {
+  private static splitByParagraph(text: string, maxLength: number, prefix: string): string[] {
     const paragraphs = text.split(/\n\n+/);
     const chunks: string[] = [];
     let currentChunk = prefix;
 
     for (const paragraph of paragraphs) {
-      const paraWithNewline = paragraph + '\n\n';
+      const paraWithNewline = paragraph + "\n\n";
 
       // If single paragraph is too long, split by sentences
       if (paraWithNewline.length > maxLength - prefix.length) {
@@ -196,18 +184,14 @@ export class MessageSplitter {
   /**
    * Split by sentences
    */
-  private static splitBySentence(
-    text: string,
-    maxLength: number,
-    prefix: string
-  ): string[] {
+  private static splitBySentence(text: string, maxLength: number, prefix: string): string[] {
     // Split by sentence endings (., !, ?, or Cyrillic equivalents)
     const sentences = text.match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g) || [text];
     const chunks: string[] = [];
     let currentChunk = prefix;
 
     for (const sentence of sentences) {
-      const sentenceWithSpace = sentence + ' ';
+      const sentenceWithSpace = sentence + " ";
 
       // If single sentence is too long, split by words
       if (sentenceWithSpace.length > maxLength - prefix.length) {
@@ -240,17 +224,13 @@ export class MessageSplitter {
   /**
    * Split by words (last resort)
    */
-  private static splitByWord(
-    text: string,
-    maxLength: number,
-    prefix: string
-  ): string[] {
+  private static splitByWord(text: string, maxLength: number, prefix: string): string[] {
     const words = text.split(/\s+/);
     const chunks: string[] = [];
     let currentChunk = prefix;
 
     for (const word of words) {
-      const wordWithSpace = word + ' ';
+      const wordWithSpace = word + " ";
 
       // If single word is too long, force split
       if (wordWithSpace.length > maxLength - prefix.length) {
@@ -287,7 +267,7 @@ export class MessageSplitter {
   static async sendSplit(
     message: Message,
     text: string,
-    options: SplitOptions & { asReply?: boolean; delay?: number } = {}
+    options: SplitOptions & { asReply?: boolean; delay?: number } = {},
   ): Promise<void> {
     if (message.channel.isDMBased()) return;
     const { asReply = true, delay = 500, ...splitOptions } = options;
