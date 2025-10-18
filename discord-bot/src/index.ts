@@ -290,6 +290,40 @@ process.on('unhandledRejection', async (reason, promise) => {
   }
 });
 
+process.on('unhandledRejection', async (reason: any, promise) => {
+    logger.error('Unhandled rejection at:', promise, 'reason:', reason);
+    console.error('FATAL: Unhandled rejection', reason);
+
+    if (config.logging.logErrors && discordLogger) {
+        try {
+            await discordLogger.logError(
+                'Unhandled promise rejection',
+                reason instanceof Error ? reason : new Error(String(reason)),
+                { action: 'unhandled_rejection' }
+            );
+        } catch (err) {
+            console.error('Failed to log error to Discord:', err);
+        }
+    }
+
+    setTimeout(() => process.exit(1), 1000);
+});
+
+process.on('uncaughtException', async (error: Error) => {
+    logger.error('Uncaught exception:', error);
+    console.error('FATAL: Uncaught exception', error);
+
+    if (config.logging.logErrors && discordLogger) {
+        try {
+            await discordLogger.logError('Uncaught exception', error, { action: 'uncaught_exception' });
+        } catch (err) {
+            console.error('Failed to log error to Discord:', err);
+        }
+    }
+
+    setTimeout(() => process.exit(1), 1000);
+});
+
 // Log startup
 discordLogger.logSystemEvent('startup', 'Bot is starting...');
 
